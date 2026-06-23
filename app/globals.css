@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+@import "tailwindcss";
+
+:root {
+  /* Volt — electric performance. Near-black ground, voltage-green primary. */
+  --night: #0a0a0a;
+  --surface: #15151a;
+  --surface-raised: #1d1d24;
+  --border: #2a2a32;
+  --border-bright: #3a3a44;
+
+  --volt: #ccff00;
+  --volt-dim: #a8d400;
+  --mint: #00e5a0;
+  --pink: #ff3366;
+
+  --text-primary: #f5f5f0;
+  --text-muted: #84848f;
+
+  /* Discipline colors — kept saturated against the dark ground */
+  --swim: #00d4ff;
+  --bike: #ff9500;
+  --run: #ccff00;
+  --brick: #b14aff;
+  --hockey: #ffd60a;
+  --gym: #ff3366;
+  --rest: #4a4a55;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background: var(--night);
+  color: var(--text-primary);
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .font-display {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.font-mono-data {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.font-impact {
+  font-family: 'Archivo Black', sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
