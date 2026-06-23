@@ -16,6 +16,7 @@
 import { WeekSummary } from "@/types/schema";
 import { RawStravaActivity } from "@/lib/stravaMatching";
 import { SportDiscipline, RaceGoal } from "@/lib/athleteSettings";
+import { calculateTargetSplits, formatTargetPace } from "@/lib/targetSplits";
 
 export type InsightSeverity = "good" | "neutral" | "warning" | "critical";
 
@@ -217,32 +218,32 @@ export function analyzePerformance(
         });
       }
 
-      // Compare against race target
+      // Compare against race target — use proper split calculation
       if (race.distances.run && race.targetTime && race.targetTime !== "—") {
-        const parts = race.targetTime.split(":").map(Number);
-        const targetTotalSec = (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
-        const runFraction = race.distances.run / ((race.distances.swim ?? 0) + (race.distances.bike ?? 0) / 10 + race.distances.run);
-        const targetRunSec = targetTotalSec * (disciplines.length === 1 ? 1 : runFraction);
-        const targetPaceVal = targetRunSec / race.distances.run;
-        const currentPace = avgLast;
-        const gapPct = ((currentPace - targetPaceVal) / targetPaceVal) * 100;
+        const splits = calculateTargetSplits(race, disciplines);
+        if (splits.runPaceSecPerKm) {
+          const targetPaceVal = splits.runPaceSecPerKm;
+          const currentPace = avgLast;
+          const gapPct = ((currentPace - targetPaceVal) / targetPaceVal) * 100;
+          const targetPaceStr = formatTargetPace(splits, "run") ?? formatPace(targetPaceVal);
 
-        if (gapPct > 15) {
-          insights.push({
-            id: "run-pace-gap",
-            severity: daysUntilRace < 90 ? "critical" : "warning",
-            title: "Looptempo nog ver van doeltempo",
-            body: `Huidig gem. tempo: ${formatPace(currentPace)}. Doeltempo: ${formatPace(targetPaceVal)}. Verschil: ${gapPct.toFixed(0)}%. ${daysUntilRace > 120 ? "Er is nog tijd om dit te overbruggen." : "Prioriteer temposessies de komende weken."}`,
-            discipline: "run",
-          });
-        } else if (gapPct <= 5) {
-          insights.push({
-            id: "run-pace-ontarget",
-            severity: "good",
-            title: "Looptempo dicht bij doel",
-            body: `Je huidig tempo (${formatPace(currentPace)}) is dicht bij het doeltempo (${formatPace(targetPaceVal)}). Goed bezig.`,
-            discipline: "run",
-          });
+          if (gapPct > 15) {
+            insights.push({
+              id: "run-pace-gap",
+              severity: daysUntilRace < 90 ? "critical" : "warning",
+              title: "Looptempo nog ver van doeltempo",
+              body: `Huidig gem. tempo: ${formatPace(currentPace)}. Doeltempo: ${targetPaceStr}. Verschil: ${gapPct.toFixed(0)}%. ${daysUntilRace > 120 ? "Er is nog tijd om dit te overbruggen." : "Prioriteer temposessies de komende weken."}`,
+              discipline: "run",
+            });
+          } else if (gapPct <= 5) {
+            insights.push({
+              id: "run-pace-ontarget",
+              severity: "good",
+              title: "Looptempo dicht bij doel",
+              body: `Je huidig tempo (${formatPace(currentPace)}) is dicht bij het doeltempo (${targetPaceStr}). Goed bezig.`,
+              discipline: "run",
+            });
+          }
         }
       }
     }
@@ -385,34 +386,51 @@ export function analyzePerformance(
   }
 
   // ---- Projected finish ----
+  // For each discipline: use actual average pace/speed from last 28 days.
+  // For missing disciplines (e.g. no swim data): fall back to target splits estimate.
   let projectedFinish: string | null = null;
-  if (disciplines.length === 1 && disciplines[0] === "run" && race.distances.run) {
-    const runs = last28Days.filter((a) => a.type === "Run" && a.distance > 0);
-    if (runs.length >= 3) {
-      const currentPaceVal = runs.reduce((s, a) => s + a.moving_time / (a.distance / 1000), 0) / runs.length;
-      const projSec = currentPaceVal * race.distances.run;
-      const h = Math.floor(projSec / 3600);
-      const m = Math.round((projSec % 3600) / 60);
+
+  const targetSplits = calculateTargetSplits(race, disciplines);
+
+  const runActs = last28Days.filter((a) => a.type === "Run" && a.distance > 0);
+  const bikeActs = last28Days.filter((a) => (a.type === "Ride" || a.type === "VirtualRide") && a.distance > 0);
+  const swimActs = last28Days.filter((a) => a.type === "Swim" && a.distance > 0);
+
+  const projRunSec = race.distances.run
+    ? runActs.length >= 2
+      ? (runActs.reduce((s, a) => s + a.moving_time / (a.distance / 1000), 0) / runActs.length) * race.distances.run
+      : targetSplits.runSec
+    : null;
+
+  const projBikeSec = race.distances.bike
+    ? bikeActs.length >= 2
+      ? (race.distances.bike / (bikeActs.reduce((s, a) => s + (a.distance / 1000) / (a.moving_time / 3600), 0) / bikeActs.length)) * 3600
+      : targetSplits.bikeSec
+    : null;
+
+  const projSwimSec = race.distances.swim
+    ? swimActs.length >= 2
+      ? (swimActs.reduce((s, a) => s + a.moving_time / (a.distance / 100), 0) / swimActs.length) * (race.distances.swim * 10)
+      : targetSplits.swimSec
+    : null;
+
+  const hasEnoughData = disciplines.some((d) =>
+    (d === "run" && runActs.length >= 2) ||
+    (d === "bike" && bikeActs.length >= 2) ||
+    (d === "swim" && swimActs.length >= 2)
+  );
+
+  if (hasEnoughData) {
+    const totalSec =
+      (projSwimSec ?? 0) +
+      (projBikeSec ?? 0) +
+      (projRunSec ?? 0) +
+      (disciplines.length >= 2 ? targetSplits.t1Sec + targetSplits.t2Sec : 0);
+
+    if (totalSec > 0) {
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.round((totalSec % 3600) / 60);
       projectedFinish = `${h}:${m.toString().padStart(2, "0")}`;
-    }
-  } else if (disciplines.includes("bike") && race.distances.bike) {
-    const rides = last28Days.filter((a) => (a.type === "Ride" || a.type === "VirtualRide") && a.distance > 0);
-    if (rides.length >= 2) {
-      const currentSpeedVal = rides.reduce((s, a) => s + (a.distance / 1000) / (a.moving_time / 3600), 0) / rides.length;
-      const projBikeSec = (race.distances.bike / currentSpeedVal) * 3600;
-      const swimSec = race.distances.swim ? (race.distances.swim / 100) * 120 : 0;
-      const runSec = race.distances.run && last28Days.some((a) => a.type === "Run")
-        ? (last28Days.filter((a) => a.type === "Run" && a.distance > 0)
-            .reduce((s, a) => s + a.moving_time / (a.distance / 1000), 0) /
-          last28Days.filter((a) => a.type === "Run" && a.distance > 0).length) *
-          race.distances.run
-        : 0;
-      const totalSec = swimSec + projBikeSec + runSec + 240; // +4 min transitions
-      if (totalSec > 0) {
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.round((totalSec % 3600) / 60);
-        projectedFinish = `${h}:${m.toString().padStart(2, "0")}`;
-      }
     }
   }
 

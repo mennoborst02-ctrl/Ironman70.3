@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTrainingData } from "@/lib/useTrainingData";
 import { useAthleteSettings, ALL_WEEKDAYS, SPORT_GOAL_OPTIONS } from "@/lib/athleteSettings";
+import { calculateTargetSplits, formatTargetPace } from "@/lib/targetSplits";
 import WorkDaysEditor from "@/components/WorkDaysEditor";
 import GroupEditor from "@/components/GroupEditor";
 import RaceEditor from "@/components/RaceEditor";
@@ -78,18 +79,21 @@ export default function ProfielPage() {
                   <div>
                     <div className="text-[10px] uppercase tracking-wide" style={{ color: "var(--swim)" }}>Zwem</div>
                     <div className="font-mono-data text-[14px]" style={{ color: "var(--text-primary)" }}>{race.distances.swim} km</div>
+                    {(() => { const s = calculateTargetSplits(race, settings.disciplines); const p = formatTargetPace(s, "swim"); return p ? <div className="font-mono-data text-[11px]" style={{ color: "var(--text-muted)" }}>{p}</div> : null; })()}
                   </div>
                 )}
                 {race.distances.bike && (
                   <div>
                     <div className="text-[10px] uppercase tracking-wide" style={{ color: "var(--bike)" }}>Fiets</div>
                     <div className="font-mono-data text-[14px]" style={{ color: "var(--text-primary)" }}>{race.distances.bike} km</div>
+                    {(() => { const s = calculateTargetSplits(race, settings.disciplines); const p = formatTargetPace(s, "bike"); return p ? <div className="font-mono-data text-[11px]" style={{ color: "var(--text-muted)" }}>{p}</div> : null; })()}
                   </div>
                 )}
                 {race.distances.run && (
                   <div>
                     <div className="text-[10px] uppercase tracking-wide" style={{ color: "var(--run)" }}>Loop</div>
                     <div className="font-mono-data text-[14px]" style={{ color: "var(--text-primary)" }}>{race.distances.run} km</div>
+                    {(() => { const s = calculateTargetSplits(race, settings.disciplines); const p = formatTargetPace(s, "run"); return p ? <div className="font-mono-data text-[11px]" style={{ color: "var(--text-muted)" }}>{p}</div> : null; })()}
                   </div>
                 )}
               </div>

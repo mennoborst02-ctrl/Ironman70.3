@@ -11,6 +11,7 @@ export default function OnboardingPage() {
   const [settings, setSettings] = useAthleteSettings();
   const [step, setStep] = useState<Step>("strava");
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaChecked, setStravaChecked] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<SportGoal>("triathlon");
   const [raceName, setRaceName] = useState("");
   const [raceDate, setRaceDate] = useState("");
@@ -31,8 +32,9 @@ export default function OnboardingPage() {
           setStravaConnected(true);
           setStep("goal");
         }
+        setStravaChecked(true);
       })
-      .catch(() => {});
+      .catch(() => setStravaChecked(true));
   }, [settings.onboardingDone, router]);
 
   const goalOption = SPORT_GOAL_OPTIONS.find((o) => o.key === selectedGoal)!;
@@ -62,6 +64,11 @@ export default function OnboardingPage() {
     });
 
     router.replace("/");
+  }
+
+  // Wacht tot de Strava-check klaar is zodat de juiste stap direct getoond wordt
+  if (!stravaChecked) {
+    return <div className="min-h-screen" style={{ background: "var(--night)" }} />;
   }
 
   return (
